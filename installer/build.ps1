@@ -2,7 +2,7 @@
 .SYNOPSIS
   Build the rpimount installer locally with Inno Setup 6.
 .EXAMPLE
-  .\installer\build.ps1 -Version 0.1.0
+  .\installer\build.ps1 -Version 1.0.0
 #>
 param([string]$Version = '0.0.0')
 

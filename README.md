@@ -15,10 +15,10 @@ A per-user Windows installer (`rpimount-setup-<version>.exe`, built with Inno Se
 Build it yourself with Inno Setup 6 installed:
 
 ```powershell
-.\installer\build.ps1 -Version 0.1.0
+.\installer\build.ps1 -Version 1.0.0
 ```
 
-Pushing a tag such as `v0.1.0` builds the installer in GitHub Actions and publishes the release (`.github/workflows/release.yml`). The installer is not code-signed, so Windows SmartScreen may show a warning.
+Pushing a tag such as `v1.0.0` builds the installer in GitHub Actions and publishes the release (`.github/workflows/release.yml`). The installer is not code-signed, so Windows SmartScreen may show a warning.
 
 ## Running
 
