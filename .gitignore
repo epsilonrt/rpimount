@@ -1,0 +1,15 @@
+# Local settings and logs
+settings.json
+*.log
+
+# Editors and OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Nextcloud / sync leftovers
+*conflicted copy*
+.sync_*
+.~lock.*
