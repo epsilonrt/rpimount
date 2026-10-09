@@ -22,7 +22,10 @@ Add-Type -Name Win -Namespace Native -MemberDefinition @'
 [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
 [DllImport("kernel32.dll")] public static extern uint GetConsoleProcessList(uint[] list, uint count);
 [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+[DllImport("shell32.dll")] public static extern int SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string appId);
 '@
+# Own taskbar identity: the window is not grouped with other PowerShell windows and keeps its icon
+[void][Native.Win]::SetCurrentProcessExplicitAppUserModelID('epsilonrt.rpimount')
 $consoleWindow = [Native.Win]::GetConsoleWindow()
 if ($consoleWindow -ne [IntPtr]::Zero -and [Native.Win]::GetConsoleProcessList((New-Object 'uint32[]' 16), 16) -le 1) {
     [void][Native.Win]::ShowWindow($consoleWindow, 0)
@@ -585,6 +588,8 @@ $script:Form = New-Object System.Windows.Forms.Form
 $script:Form.Text = 'rpimount'
 $script:Form.ClientSize = New-Object System.Drawing.Size(850, 580)
 $script:Form.StartPosition = 'CenterScreen'
+$iconFile = Join-Path $PSScriptRoot 'assets\rpimount.ico'
+if (Test-Path -LiteralPath $iconFile) { $script:Form.Icon = New-Object System.Drawing.Icon($iconFile) }
 
 $menu = New-Object System.Windows.Forms.MenuStrip
 $script:MenuWsl = New-Object System.Windows.Forms.ToolStripMenuItem

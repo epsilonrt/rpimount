@@ -1,70 +1,83 @@
 # rpimount
 
-Petit outil graphique Windows (PowerShell + WinForms, un script et des fichiers de langue dans `lang/`) pour inspecter et modifier la partition rootfs (ext4) d'une carte SD de Raspberry Pi, via WSL2 et usbipd-win.
+A small Windows GUI (PowerShell + WinForms, one script plus language files in `lang/`) to inspect and modify the ext4 rootfs partition of a Raspberry Pi SD card, through WSL2 and usbipd-win.
 
-## Prérequis
+## Requirements
 
-- Windows 11 avec WSL2 et une distribution Debian (nom configurable dans `$script:Distro`, `Debian` par défaut).
-- [usbipd-win](https://github.com/dorssel/usbipd-win) installé.
-- Un lecteur de cartes USB. `wsl --mount` ne fonctionne pas avec un lecteur déclaré amovible, d'où le passage par usbipd.
+- Windows 11 with WSL2 and a Debian-based distribution (selectable from the **WSL distribution** menu).
+- [usbipd-win](https://github.com/dorssel/usbipd-win) installed.
+- A USB card reader. `wsl --mount` does not work with a reader declared as removable, hence the detour through usbipd.
 
-## Lancement
+## Installer
+
+A per-user Windows installer (`rpimount-setup-<version>.exe`, built with Inno Setup 6) is attached to each GitHub release. It does not need administrator rights to install. It shows the license, offers a desktop icon, creates a Start menu entry, and **checks the prerequisites before installing**: WSL, usbipd-win and at least one WSL2 distribution. If one is missing, a window lists what to do (commands you can copy) and blocks the installation until you click "Check again" and everything is available. The checks run in the account that runs the installer; WSL distributions are per user.
+
+Build it yourself with Inno Setup 6 installed:
+
+```powershell
+.\installer\build.ps1 -Version 0.1.0
+```
+
+Pushing a tag such as `v0.1.0` builds the installer in GitHub Actions and publishes the release (`.github/workflows/release.yml`). The installer is not code-signed, so Windows SmartScreen may show a warning.
+
+## Running
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\rpimount.ps1
 ```
 
-Le script se relance tout seul en administrateur (invite UAC). La console PowerShell est masquée quand elle a été créée pour le script (une console d'où tu le lances toi-même n'est jamais masquée).
+The script relaunches itself as administrator (UAC prompt). The PowerShell console is hidden when it was created for the script (a console you started the script from yourself is never hidden).
 
-## Utilisation
+## Usage
 
-1. **Actualiser** : liste les périphériques USB de stockage de masse vus par `usbipd` (état *Not shared* / *Shared* / *Attached*). Les partitions ext4 apparaissent une fois la carte attachée.
-2. **Connect** : bind si besoin, démarrage de WSL, attach, chargement de `usb_storage` et `uas`, montage dans `/mnt/<label>`, puis terminal WSL dans ce répertoire.
-3. **Connect + chroot** : comme Connect, puis préparation et ouverture d'un shell root en chroot (voir ci-dessous).
-4. **Disconnect** : défait le chroot, `umount -R`, `sync`, `usbipd detach`. Si la cible est occupée (*target is busy*), le journal liste les processus en cause et la carte reste attachée : ferme le terminal et recommence.
+1. **Refresh**: lists the USB mass-storage devices seen by `usbipd` (state *Not shared* / *Shared* / *Attached*). The ext4 partitions show up once the card is attached.
+2. **Connect**: bind if needed, start WSL, attach, load `usb_storage` and `uas`, mount on `/mnt/<label>`, then open a WSL terminal in that directory.
+3. **Connect + chroot**: same as Connect, then prepare and open a root shell in a chroot (see below).
+4. **Disconnect**: undo the chroot, `umount -R`, `sync`, `usbipd detach`. If the target is busy, the log lists the offending processes and the card stays attached: close the terminal and try again.
+5. **Check (e2fsck)**: attach the card without mounting it, run `e2fsck -f -n` (read-only, nothing is modified) and print the result in the log. If problems are found, a confirmation (default "No") offers to open an interactive repair terminal (`e2fsck -f`, no `-y`: every fix is asked). A mounted partition is refused: Disconnect first. The card stays attached afterwards; wait for the repair to finish before clicking Disconnect, which hands the card back to Windows.
 
-5. **Vérifier (e2fsck)** : attache la carte sans la monter, puis lance `e2fsck -f -n` (lecture seule, rien n'est modifié) et affiche le résultat dans le journal. Si des anomalies sont détectées, une confirmation (« Non » par défaut) propose d'ouvrir un terminal de réparation interactive (`e2fsck -f`, sans `-y` : chaque correction est demandée). Une partition montée est refusée : fais Disconnect d'abord. À la fin, la carte reste attachée ; attends la fin de la réparation avant de cliquer sur Disconnect, qui la rend à Windows.
+## WSL distribution
 
-## Distribution WSL
-
-Le menu **Distribution WSL** liste les distributions WSL2 installées (les distributions internes de Docker Desktop sont ignorées) ; la liste est relue à chaque ouverture du menu. Le choix est mémorisé. Au premier lancement, ou si la distribution mémorisée n'existe plus, la distribution par défaut de WSL est prise. Les noms de distribution contenant des espaces ne sont pas pris en charge.
+The **WSL distribution** menu lists the installed WSL2 distributions (Docker Desktop's internal ones are ignored); the list is read again each time the menu opens. The choice is remembered. On first run, or if the remembered distribution no longer exists, the WSL default distribution is used. Distribution names containing spaces are not supported.
 
 ## Chroot
 
-- L'architecture du rootfs (aarch64, arm) est lue dans l'en-tête ELF de `/usr/bin/bash`.
-- Si elle diffère de l'hôte (x86_64), `qemu-user-static` et `binfmt-support` sont installés dans WSL s'ils manquent (apt), et `qemu-<arch>-static` est copié dans le rootfs.
-- Le `resolv.conf` du rootfs est mis de côté et remplacé par celui de WSL pour avoir le réseau.
-- `/proc`, `/sys` et `/dev` (dont `/dev/pts`) sont montés.
-- Le shell est lancé avec `LC_ALL=C.UTF-8` pour éviter les avertissements de locale.
-- Si `/root/.bashrc` n'existe pas dans le rootfs, il est copié depuis le `/root/.bashrc` de la distribution WSL (root n'a pas de profil par défaut sur Raspberry Pi OS). Un fichier existant n'est écrasé que si la case « Écraser /root/.bashrc en chroot » est cochée (décochée par défaut). Cette copie est **conservée** après Disconnect.
+- The rootfs architecture (aarch64, arm) is read from the ELF header of `/usr/bin/bash`.
+- If it differs from the host (x86_64), `qemu-user-static` and `binfmt-support` are installed in WSL when missing (apt), and `qemu-<arch>-static` is copied into the rootfs.
+- The rootfs `resolv.conf` is moved aside and replaced by the WSL one so that the network works.
+- `/proc`, `/sys` and `/dev` (including `/dev/pts`) are mounted.
+- The shell starts with `LANG=C.UTF-8` and `LC_ALL=C.UTF-8` to avoid locale warnings.
+- If `/root/.bashrc` does not exist in the rootfs, it is copied from the `/root/.bashrc` of the WSL distribution (root has no shell profile by default on Raspberry Pi OS). An existing file is only replaced when the "Overwrite /root/.bashrc in chroot" checkbox is ticked (unticked by default). This copy is **kept** after Disconnect.
+- If the "Copy a script to /root in chroot" checkbox is ticked, the chosen file is copied into the rootfs `/root` (CRLF line endings converted to LF, mode 755). A file with the same name is overwritten. This copy is also **kept** after Disconnect.
 
-- Si la case « Copier un script dans /root en chroot » est cochée, le fichier choisi est copié dans `/root` du rootfs (fins de ligne CRLF converties en LF, droits 755). Un fichier du même nom est écrasé. Cette copie est aussi **conservée** après Disconnect.
+On Disconnect, everything else is undone in reverse order: bind-mounts, original `resolv.conf`, qemu binary (only if the tool copied it), then the rootfs is unmounted. The state is kept in `/run/rpimount/` on the WSL side. If the chroot preparation fails halfway, it is rolled back automatically.
 
-Au Disconnect, tout le reste est défait dans l'ordre inverse : bind-mounts, `resolv.conf` d'origine, binaire qemu (seulement s'il a été copié par l'outil), puis démontage du rootfs. L'état est gardé dans `/run/rpimount/` côté WSL.
+## Remembered settings
 
-## Réglages mémorisés
+Stored in `%APPDATA%\rpimount\settings.json` and reloaded at each start: the `.bashrc` overwrite checkbox, the script transfer checkbox, the script path, the language and the WSL distribution.
 
-Enregistrés dans `%APPDATA%\rpimount\settings.json` et rechargés à chaque lancement : case d'écrasement du `.bashrc`, case de transfert de script, chemin du script, langue, distribution WSL.
+## Language
 
-## Langue
+The **Language** menu offers *Automatic* (Windows display language, English if it is not available) or any language found in `lang/`. Shipped: English (`en.json`, the fallback) and French (`fr.json`).
 
-Menu **Langue** : *Automatique* (langue d'affichage de Windows, anglais si elle n'est pas disponible) ou l'une des langues trouvées dans `lang/`. Livré : français (`fr.json`) et anglais (`en.json`, langue de repli).
+To add a language: copy `lang/en.json` to `lang/<code>.json` (for example `de.json`), translate the values (not the keys) and set `language.name` (the name shown in the menu). A missing key falls back to English.
 
-Pour ajouter une langue : copier `lang/en.json` en `lang/<code>.json` (par exemple `de.json`), traduire les valeurs (pas les clés), et renseigner `language.name` (nom affiché dans le menu). Une clé manquante retombe sur l'anglais.
+## Test script
 
-## Script de test
+`test/test-tree.sh` installs `tree` if missing, then prints the permissions, owner and group of a directory (`/home` by default). It is meant to test the script transfer: tick "Copy a script to /root in chroot", pick this file, then run `/root/test-tree.sh` in the chroot.
 
-`test/test-tree.sh` installe `tree` s'il manque puis affiche les permissions, le propriétaire et le groupe d'un répertoire (`/home` par défaut). Il sert à tester le transfert de script : coche « Copier un script dans /root en chroot », choisis ce fichier, puis lance `/root/test-tree.sh` dans le chroot.
+## License
 
-## Licence
+BSD 3-Clause, see [LICENSE](LICENSE).
 
-BSD 3-Clause, voir [LICENSE](LICENSE).
+## Trademark notice
 
-## Limites et précautions
+Raspberry Pi is a trademark of Raspberry Pi Ltd. rpimount is an independent tool, not affiliated with, endorsed or sponsored by Raspberry Pi Ltd; the name is used only to say that the tool works with Raspberry Pi SD cards.
+## Limits and precautions
 
-- Seuls les disques USB (`TRAN=usb`) vus par WSL sont considérés ; les disques internes (NVMe) ne sont jamais touchés.
-- Aucune opération destructive : pas de `mkfs`, pas de `fsck` automatique.
-- Disconnect démonte toutes les partitions ext4 USB vues par WSL, pas seulement celle de la ligne sélectionnée.
-- Le terminal s'ouvre avec les droits administrateur (le script est élevé).
-- Console masquée : une erreur fatale du script s'affiche dans une boîte de dialogue. Si Windows Terminal est le terminal par défaut de Windows 11, la fenêtre console peut encore apparaître brièvement au lancement.
-- Un lecteur fraîchement détaché peut mettre un instant à réapparaître : cliquer sur Actualiser.
+- Only USB disks (`TRAN=usb`) seen by WSL are considered; internal disks (NVMe) are never touched.
+- No destructive operation: no `mkfs`, no automatic `fsck` repair.
+- Disconnect unmounts all the USB ext4 partitions seen by WSL, not only the one of the selected row.
+- The terminal opens with administrator rights (the script is elevated).
+- With the console hidden, a fatal script error is shown in a dialog box. If Windows Terminal is the default terminal in Windows 11, the console window may still flash briefly at startup.
+- A freshly detached reader may take a moment to show up again: click Refresh.

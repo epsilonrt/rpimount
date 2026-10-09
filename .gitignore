@@ -13,3 +13,9 @@ desktop.ini
 *conflicted copy*
 .sync_*
 .~lock.*
+
+# Large source images
+assets/*.png
+
+# Installer build output
+installer/Output/
